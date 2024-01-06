@@ -3,7 +3,7 @@ import os
 import time
 
 # OpenCV'nin başlatılması
-cap = cv2.VideoCapture(1)  # VideoCapture(0) webcam üzerinden görüntü alır
+cap = cv2.VideoCapture(0)  # VideoCapture(0) webcam üzerinden görüntü alır
 
 # Dikdörtgen koordinatları ve boyutları
 rectangle_top_left = (200, 200)
