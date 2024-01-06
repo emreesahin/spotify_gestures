@@ -49,7 +49,7 @@ while True:
         time_counter = time.time()  # Zamanı sıfırla
 
     # Her 2 saniyede bir fotoğrafı kaydet
-    if recording and time.time() - time_counter >= 2:
+    if recording and time.time() - time_counter >= 1.3:
         time_counter = time.time()  # Zamanı sıfırla
 
         # Dikdörtgen içindeki görüntüyü al
