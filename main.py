@@ -2,9 +2,34 @@ import cv2
 import mediapipe as mp
 from mediapipe.tasks import python
 import threading
+import spotipy
+from spotipy.oauth2 import SpotifyOAuth
 
 
 class GestureRecognizer:
+    def __init__(self):
+        self.sp = self.setup_spotify()
+        self.playing = False
+
+    def setup_spotify(self):
+        client_id = '6ab1dd4df626495199c0a6eae899b084'
+        client_secret = 'c5d5b858acd54bccbfff015782c28009'
+        redirect_uri = 'https://github.com'  # Redirect URI
+        scope = "user-modify-playback-state", "user-read-playback-state"
+
+        sp = spotipy.Spotify(auth_manager=SpotifyOAuth(client_id=client_id,
+                                                       client_secret=client_secret,
+                                                       redirect_uri=redirect_uri,
+                                                       scope=scope))
+
+        current_track = sp.current_playback()
+        if current_track is not None:
+            print("Currently Playing Track:")
+            print(current_track)
+        else:
+            print("Spotify is not connected.")
+        return sp
+
     def main(self):
         num_hands = 2
         model_path = "../../gesture_recognizer.task"
@@ -12,7 +37,6 @@ class GestureRecognizer:
         GestureRecognizerOptions = mp.tasks.vision.GestureRecognizerOptions
         VisionRunningMode = mp.tasks.vision.RunningMode
 
-        # Initialize Mediapipe's model
         self.mediapipe_hands = mp.solutions.hands.Hands(
             static_image_mode=False,
             max_num_hands=2,
@@ -58,15 +82,14 @@ class GestureRecognizer:
                     mp_image = mp.Image(
                         image_format=mp.ImageFormat.SRGB, data=np_array)
                     recognizer.recognize_async(mp_image, timestamp)
-                    # should be monotonically increasing, because in LIVE_STREAM mode
                     timestamp = timestamp + 1
 
                 self.put_gestures(frame)
 
             cv2.imshow('MediaPipe Hands', frame)
             key = cv2.waitKey(1)
-            if key == ord('q') or key == 27:  # 'q' veya 'ESC' tuşlarına basılınca çıkış yap
-                break  # while döngüsünden çık
+            if key == ord('q') or key == 27:
+                break
 
         cap.release()
 
@@ -74,16 +97,29 @@ class GestureRecognizer:
         self.lock.acquire()
         gestures = self.current_gestures
         self.lock.release()
-        y_pos = 50
+        open_hand_detected = False
+        closed_fist_detected = False
+
+        # El hareketleri taraması
         for hand_gesture_name in gestures:
-            # show the prediction on the frame
-            cv2.putText(frame, hand_gesture_name, (10, y_pos), cv2.FONT_HERSHEY_SIMPLEX,
+            cv2.putText(frame, hand_gesture_name, (10, 50), cv2.FONT_HERSHEY_SIMPLEX,
                         1, (0, 0, 255), 2, cv2.LINE_AA)
-            y_pos += 50
+
+            if hand_gesture_name == 'open hand':
+                open_hand_detected = True
+            elif hand_gesture_name == 'closed fist':
+                closed_fist_detected = True
+
+        # Durumu kontrol etme ve Spotify işlemlerini gerçekleştirme
+        if open_hand_detected and not self.playing:
+            self.sp.start_playback()
+            self.playing = True
+        elif closed_fist_detected and self.playing:
+            self.sp.pause_playback()
+            self.playing = False
 
     def __result_callback(self, result, output_image, timestamp_ms):
-        # print(f'gesture recognition result: {result}')
-        self.lock.acquire()  # solves potential concurrency issues
+        self.lock.acquire()
         self.current_gestures = []
         if result is not None and any(result.gestures):
             print("Recognized gestures:")
