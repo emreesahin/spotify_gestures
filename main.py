@@ -10,6 +10,10 @@ class GestureRecognizer:
     def __init__(self):
         self.sp = self.setup_spotify()
         self.playing = False
+        self.increase_volume_triggered = False
+        self.pause_triggered = False
+        self.play_triggered = False
+        self.gesture_delay = 1.5
 
     def setup_spotify(self):
         client_id = '6ab1dd4df626495199c0a6eae899b084'
@@ -21,13 +25,6 @@ class GestureRecognizer:
                                                        client_secret=client_secret,
                                                        redirect_uri=redirect_uri,
                                                        scope=scope))
-
-        current_track = sp.current_playback()
-        if current_track is not None:
-            print("Currently Playing Track:")
-            print(current_track)
-        else:
-            print("Spotify is not connected.")
         return sp
 
     def main(self):
@@ -44,7 +41,6 @@ class GestureRecognizer:
             min_tracking_confidence=0.5
         )
         self.mp_drawing = mp.solutions.drawing_utils
-
         self.lock = threading.Lock()
         self.current_gestures = []
         options = GestureRecognizerOptions(
@@ -94,11 +90,13 @@ class GestureRecognizer:
         cap.release()
 
     def put_gestures(self, frame):
+
         self.lock.acquire()
-        gestures = self.current_gestures
+        gestures = self.current_gestures.copy()  # gestures listesini kopyalayalım
         self.lock.release()
         open_hand_detected = False
         closed_fist_detected = False
+        two_finger_up_detected = False
 
         # El hareketleri taraması
         for hand_gesture_name in gestures:
@@ -109,23 +107,78 @@ class GestureRecognizer:
                 open_hand_detected = True
             elif hand_gesture_name == 'closed fist':
                 closed_fist_detected = True
+            elif hand_gesture_name == '2 finger up':
+                two_finger_up_detected = True
 
-        # Durumu kontrol etme ve Spotify işlemlerini gerçekleştirme
-        if open_hand_detected and not self.playing:
-            self.sp.start_playback()
-            self.playing = True
-        elif closed_fist_detected and self.playing:
-            self.sp.pause_playback()
-            self.playing = False
+        if open_hand_detected and not self.play_triggered:
+            self.play_triggered = True
+            threading.Timer(self.gesture_delay,
+                            self.reset_play_trigger).start()
+            threading.Thread(target=self.start_spotify_playback).start()
+        elif closed_fist_detected and not self.pause_triggered:
+            self.pause_triggered = True
+            threading.Timer(self.gesture_delay,
+                            self.reset_pause_trigger).start()
+            threading.Thread(target=self.pause_spotify_playback).start()
+        elif two_finger_up_detected and not self.increase_volume_triggered:
+            self.increase_volume_triggered = True
+            threading.Timer(self.gesture_delay,
+                            self.reset_volume_trigger).start()
+            threading.Thread(target=self.increase_volume).start()
+
+    def reset_play_trigger(self):
+        self.play_triggered = False
+
+    def reset_pause_trigger(self):
+        self.pause_triggered = False
+
+    def reset_volume_trigger(self):
+        self.increase_volume_triggered = False
+
+    def increase_volume(self):
+        try:
+            current_volume = self.sp.current_playback().get(
+                'device', {}).get('volume_percent', 50)
+            new_volume = min(100, current_volume + 10)
+            self.sp.volume(new_volume)
+            print(
+                f"Müziğin sesi artırıldı: Yeni ses seviyesi {new_volume}")
+        except spotipy.SpotifyException as e:
+            if "Restriction violated" in str(e):
+                print("Şarkı zaten çalıyor veya durdurulmuş durumda.")
+            else:
+                print(f"SpotifyException: {e}")
+
+    def start_spotify_playback(self):
+        try:
+            if not self.playing:
+                self.sp.start_playback()
+                self.playing = True
+                print('Şarkı başladı.')
+        except spotipy.SpotifyException as e:
+            if "Restriction violated" in str(e):
+                print("Şarkı zaten çalıyor veya durdurulmuş durumda.")
+            else:
+                print(f"SpotifyException: {e}")
+
+    def pause_spotify_playback(self):
+        try:
+            if self.playing:
+                self.sp.pause_playback()
+                self.playing = False
+                print('Şarkı durduruldu.')
+        except spotipy.SpotifyException as e:
+            if "Restriction violated" in str(e):
+                print("Şarkı zaten çalıyor veya durdurulmuş durumda.")
+            else:
+                print(f"SpotifyException: {e}")
 
     def __result_callback(self, result, output_image, timestamp_ms):
         self.lock.acquire()
         self.current_gestures = []
         if result is not None and any(result.gestures):
-            print("Recognized gestures:")
             for single_hand_gesture_data in result.gestures:
                 gesture_name = single_hand_gesture_data[0].category_name
-                print(gesture_name)
                 self.current_gestures.append(gesture_name)
         self.lock.release()
 
