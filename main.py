@@ -15,6 +15,8 @@ class GestureRecognizer:
         self.pause_triggered = False
         self.play_triggered = False
         self.gesture_delay = 1
+        # self.previous_track_triggered = False
+        # self.next_track_triggered = False
 
     def setup_spotify(self):
         client_id = '6ab1dd4df626495199c0a6eae899b084'
@@ -98,6 +100,8 @@ class GestureRecognizer:
         closed_fist_detected = False
         two_finger_up_detected = False
         two_finger_down_detected = False
+        # one_finger_left_detected = False
+        # one_finger_right_detected = False
 
         # El hareketleri taraması
         for hand_gesture_name in gestures:
@@ -112,6 +116,10 @@ class GestureRecognizer:
                 two_finger_up_detected = True
             elif hand_gesture_name == '2 finger down':
                 two_finger_down_detected = True
+            # elif hand_gesture_name == '1 finger left':
+            #     one_finger_left = True
+            # elif hand_gesture_name == '1 finger right':
+            #     one_finger_right = True
 
         # if len(gestures) == 0:
         #     return
@@ -164,6 +172,18 @@ class GestureRecognizer:
             threading.Timer(self.gesture_delay,
                             self.reset_decrease_volume_trigger).start()
             threading.Thread(target=self.decrease_volume).start()
+        # elif self.one_finger_left_detected and not self.previous_track_triggered:
+        #     self.previous_track_triggered = True
+        #     threading.Timer(self.gesture_delay,
+        #                      self.reset_previous_track_trigger).start()
+        #     threading.Thread(target=self.previous_track).start()
+        # elif self.one_finger_right_detected and not self.next_track_triggered:
+        #     self.next_track_triggered = True
+        #     threading.Timer(self.gesture_delay,
+        #                      self.reset_next_track_trigger).start()
+        #     threading.Thread(target=self.next_track).start()
+        
+        
 
     def reset_play_trigger(self):
         self.play_triggered = False
@@ -176,6 +196,12 @@ class GestureRecognizer:
 
     def reset_decrease_volume_trigger(self):
         self.decrease_volume_triggered = False
+    
+    # def reset_previous_track_trigger(self):
+    #     self.previous_track_triggered = False
+    
+    # def reset_next_track_trigger(self):
+    #     self.next_track_triggered = False
 
     def decrease_volume(self):
         try:
@@ -228,6 +254,32 @@ class GestureRecognizer:
                 print("Şarkı zaten çalıyor veya durdurulmuş durumda.")
             else:
                 print(f"SpotifyException: {e}")
+
+    # def previous_track(self):
+    #     try:
+    #         if self.playing:
+    #             self.sp.previous_track()
+    #             print('Önceki şarkıya geçildi.')
+    #         else:
+    #             print('Şu anda müzik çalmıyor.')
+    #     except spotipy.SpotifyException as e:
+    #         if "Restriction violated" in str(e):
+    #             print("Önceki şarkıya geçilemiyor.")
+    #         else:
+    #             print(f"SpotifyException: {e}")
+
+    # def next_track(self):
+    #     try:
+    #         if self.playing:
+    #             self.sp.next_track()
+    #             print('Bir sonraki şarkıya geçildi.')
+    #         else:
+    #             print('Şu anda müzik çalmıyor.')
+    #     except spotipy.SpotifyException as e:
+    #         if "Restriction violated" in str(e):
+    #             print("Bir sonraki şarkıya geçilemiyor.")
+    #         else:
+    #             print(f"SpotifyException: {e}")
 
     def __result_callback(self, result, output_image, timestamp_ms):
         self.lock.acquire()
