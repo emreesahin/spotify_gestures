@@ -11,10 +11,10 @@ class GestureRecognizer:
         self.sp = self.setup_spotify()
         self.playing = False
         self.increase_volume_triggered = False
+        self.decrease_volume_triggered = False
         self.pause_triggered = False
         self.play_triggered = False
-        self.gesture_delay = 1.5
-        self.last_finger_positions = [0, 0]
+        self.gesture_delay = 1
 
     def setup_spotify(self):
         client_id = '6ab1dd4df626495199c0a6eae899b084'
@@ -60,7 +60,7 @@ class GestureRecognizer:
             min_detection_confidence=0.65,
             min_tracking_confidence=0.65)
 
-        cap = cv2.VideoCapture(1)
+        cap = cv2.VideoCapture(0)
 
         while True:
             ret, frame = cap.read()
@@ -97,6 +97,7 @@ class GestureRecognizer:
         open_hand_detected = False
         closed_fist_detected = False
         two_finger_up_detected = False
+        two_finger_down_detected = False
 
         # El hareketleri taraması
         for hand_gesture_name in gestures:
@@ -107,36 +108,40 @@ class GestureRecognizer:
                 open_hand_detected = True
             elif hand_gesture_name == 'closed fist':
                 closed_fist_detected = True
+            elif hand_gesture_name == '2 finger up':
+                two_finger_up_detected = True
+            elif hand_gesture_name == '2 finger down':
+                two_finger_down_detected = True
 
-        if len(gestures) == 0:
-            return
+        # if len(gestures) == 0:
+        #     return
 
         # El izleme sonuçlarını işleyin
-        landmarks = self.mediapipe_hands.process(frame).multi_hand_landmarks
-        if landmarks and len(landmarks) > 0:
-            hand_landmarks = landmarks[0]
+        # landmarks = self.mediapipe_hands.process(frame).multi_hand_landmarks
+        # if landmarks and len(landmarks) > 0:
+        #     hand_landmarks = landmarks[0]
 
             # İlgili parmak pozisyonlarını kontrol edin
-            index_finger = hand_landmarks.landmark[mp.solutions.hands.HandLandmark.INDEX_FINGER_TIP]
-            middle_finger = hand_landmarks.landmark[mp.solutions.hands.HandLandmark.MIDDLE_FINGER_TIP]
+            # index_finger = hand_landmarks.landmark[mp.solutions.hands.HandLandmark.INDEX_FINGER_TIP]
+            # middle_finger = hand_landmarks.landmark[mp.solutions.hands.HandLandmark.MIDDLE_FINGER_TIP]
             ###########################################################################################
             # İlgili el işareti algılandıysa
-            if '2 finger up' in gestures:
-                two_finger_up_detected = True
+            # if '2 finger up' in gestures:
+            #     two_finger_up_detected = True
 
-                if two_finger_up_detected:
-                    if index_finger.y > self.last_finger_positions[0] and middle_finger.y > self.last_finger_positions[1]:
-                        self.last_finger_positions = [
-                            index_finger.y, middle_finger.y]
-                        if not self.increase_volume_triggered:
-                            self.increase_volume_triggered = True
-                            threading.Timer(self.gesture_delay,
-                                            self.reset_volume_trigger).start()
-                            threading.Thread(
-                                target=self.increase_volume).start()
-                    else:
-                        self.last_finger_positions = [
-                            index_finger.y, middle_finger.y]
+            #     if two_finger_up_detected:
+            #         if index_finger.y > self.last_finger_positions[0] and middle_finger.y > self.last_finger_positions[1]:
+            #             self.last_finger_positions = [
+            #                 index_finger.y, middle_finger.y]
+            #             if not self.increase_volume_triggered:
+            #                 self.increase_volume_triggered = True
+            #                 threading.Timer(self.gesture_delay,
+            #                                 self.reset_volume_trigger).start()
+            #                 threading.Thread(
+            #                     target=self.increase_volume).start()
+            #         else:
+            #             self.last_finger_positions = [
+            #                 index_finger.y, middle_finger.y]
             ###########################################################################################
 
         if open_hand_detected and not self.play_triggered:
@@ -149,6 +154,16 @@ class GestureRecognizer:
             threading.Timer(self.gesture_delay,
                             self.reset_pause_trigger).start()
             threading.Thread(target=self.pause_spotify_playback).start()
+        elif two_finger_up_detected and not self.increase_volume_triggered:
+            self.increase_volume_triggered = True
+            threading.Timer(self.gesture_delay,
+                            self.reset_volume_trigger).start()
+            threading.Thread(target=self.increase_volume).start()
+        elif two_finger_down_detected and not self.decrease_volume_triggered:
+            self.decrease_volume_triggered = True
+            threading.Timer(self.gesture_delay,
+                            self.reset_decrease_volume_trigger).start()
+            threading.Thread(target=self.decrease_volume).start()
 
     def reset_play_trigger(self):
         self.play_triggered = False
@@ -158,6 +173,23 @@ class GestureRecognizer:
 
     def reset_volume_trigger(self):
         self.increase_volume_triggered = False
+
+    def reset_decrease_volume_trigger(self):
+        self.decrease_volume_triggered = False
+
+    def decrease_volume(self):
+        try:
+            current_volume = self.sp.current_playback().get(
+                'device', {}).get('volume_percent', 50)
+            new_volume = max(0, current_volume - 10)
+            self.sp.volume(new_volume)
+            print(
+                f"Müziğin sesi azaltıldı: Yeni ses seviyesi {new_volume}")
+        except spotipy.SpotifyException as e:
+            if "Restriction violated" in str(e):
+                print("Şarkı zaten çalıyor veya durdurulmuş durumda.")
+            else:
+                print(f"SpotifyException: {e}")
 
     def increase_volume(self):
         try:
