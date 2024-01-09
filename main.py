@@ -14,6 +14,7 @@ class GestureRecognizer:
         self.pause_triggered = False
         self.play_triggered = False
         self.gesture_delay = 1.5
+        self.last_finger_positions = [0, 0]
 
     def setup_spotify(self):
         client_id = '6ab1dd4df626495199c0a6eae899b084'
@@ -90,7 +91,6 @@ class GestureRecognizer:
         cap.release()
 
     def put_gestures(self, frame):
-
         self.lock.acquire()
         gestures = self.current_gestures.copy()  # gestures listesini kopyalayalım
         self.lock.release()
@@ -107,8 +107,37 @@ class GestureRecognizer:
                 open_hand_detected = True
             elif hand_gesture_name == 'closed fist':
                 closed_fist_detected = True
-            elif hand_gesture_name == '2 finger up':
+
+        if len(gestures) == 0:
+            return
+
+        # El izleme sonuçlarını işleyin
+        landmarks = self.mediapipe_hands.process(frame).multi_hand_landmarks
+        if landmarks and len(landmarks) > 0:
+            hand_landmarks = landmarks[0]
+
+            # İlgili parmak pozisyonlarını kontrol edin
+            index_finger = hand_landmarks.landmark[mp.solutions.hands.HandLandmark.INDEX_FINGER_TIP]
+            middle_finger = hand_landmarks.landmark[mp.solutions.hands.HandLandmark.MIDDLE_FINGER_TIP]
+            ###########################################################################################
+            # İlgili el işareti algılandıysa
+            if '2 finger up' in gestures:
                 two_finger_up_detected = True
+
+                if two_finger_up_detected:
+                    if index_finger.y > self.last_finger_positions[0] and middle_finger.y > self.last_finger_positions[1]:
+                        self.last_finger_positions = [
+                            index_finger.y, middle_finger.y]
+                        if not self.increase_volume_triggered:
+                            self.increase_volume_triggered = True
+                            threading.Timer(self.gesture_delay,
+                                            self.reset_volume_trigger).start()
+                            threading.Thread(
+                                target=self.increase_volume).start()
+                    else:
+                        self.last_finger_positions = [
+                            index_finger.y, middle_finger.y]
+            ###########################################################################################
 
         if open_hand_detected and not self.play_triggered:
             self.play_triggered = True
@@ -120,11 +149,6 @@ class GestureRecognizer:
             threading.Timer(self.gesture_delay,
                             self.reset_pause_trigger).start()
             threading.Thread(target=self.pause_spotify_playback).start()
-        elif two_finger_up_detected and not self.increase_volume_triggered:
-            self.increase_volume_triggered = True
-            threading.Timer(self.gesture_delay,
-                            self.reset_volume_trigger).start()
-            threading.Thread(target=self.increase_volume).start()
 
     def reset_play_trigger(self):
         self.play_triggered = False
