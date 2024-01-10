@@ -4,6 +4,7 @@ from mediapipe.tasks import python
 import threading
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
+import time 
 
 
 class GestureRecognizer:
@@ -32,7 +33,7 @@ class GestureRecognizer:
 
     def main(self):
         num_hands = 2
-        model_path = "../../gesture_recognizer.task"
+        model_path = "./gesture_recognizer.task"
         GestureRecognizer = mp.tasks.vision.GestureRecognizer
         GestureRecognizerOptions = mp.tasks.vision.GestureRecognizerOptions
         VisionRunningMode = mp.tasks.vision.RunningMode
@@ -62,9 +63,10 @@ class GestureRecognizer:
             min_detection_confidence=0.65,
             min_tracking_confidence=0.65)
 
-        cap = cv2.VideoCapture(0)
+        cap = cv2.VideoCapture(1)
 
         while True:
+            start_frame_time = time.time()
             ret, frame = cap.read()
             if not ret:
                 break
@@ -86,6 +88,11 @@ class GestureRecognizer:
                     timestamp = timestamp + 1
 
                 self.put_gestures(frame)
+
+            end_frame_time = time.time() 
+
+            # Response time i gormek icin asagidaki satiri kullaniniz!!
+            # print(f"Response Time: {end_frame_time - start_frame_time} seconds")
 
             cv2.imshow('MediaPipe Hands', frame)
             key = cv2.waitKey(1)
